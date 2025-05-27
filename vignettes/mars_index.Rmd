@@ -1,0 +1,193 @@
+---
+title: "Using the MARS Package to Create an Index for a Downstream Regression"
+author: "Jacob Carlson"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using the MARS Package to Create an Index for a Downstream Regression}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(mars)
+library(tidyverse)
+```
+
+## MARS Mean Estimation for Index Creation
+
+Let's create a quantitative index of FOMC communications using MARS mean estimation.
+
+We will use the dataset introduced in Shah et al. (ACL 2023).
+
+> @inproceedings{shah-etal-2023-trillion,
+>     title = "Trillion Dollar Words: A New Financial Dataset, Task {\&} Market Analysis",
+>     author = "Shah, Agam  and
+>       Paturi, Suvan  and
+>       Chava, Sudheer",
+>     booktitle = "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
+>     month = jul,
+>     year = "2023",
+>     address = "Toronto, Canada",
+>     publisher = "Association for Computational Linguistics",
+>     url = "https://aclanthology.org/2023.acl-long.368",
+>     doi = "10.18653/v1/2023.acl-long.368",
+>     pages = "6664--6679",
+>     abstract = "Monetary policy pronouncements by Federal Open Market Committee (FOMC) are a major driver of financial market returns. We construct the largest tokenized and annotated dataset of FOMC speeches, meeting minutes, and press conference transcripts in order to understand how monetary policy influences financial markets. In this study, we develop a novel task of hawkish-dovish classification and benchmark various pre-trained language models on the proposed dataset. Using the best-performing model (RoBERTa-large), we construct a measure of monetary policy stance for the FOMC document release days. To evaluate the constructed measure, we study its impact on the treasury market, stock market, and macroeconomic indicators. Our dataset, models, and code are publicly available on Huggingface and GitHub under CC BY-NC 4.0 license.",
+> }
+
+### Data Preparation
+
+Let's prepare the data. 
+
+We will use the `gtfintechlab_fomc_communication_w_imp.csv` dataset, which is the [original dataset](https://huggingface.co/datasets/gtfintechlab/fomc_communication)
+from Shah et al. (ACL 2023) supplemented with imputations from their [RoBERTa classifier](https://huggingface.co/gtfintechlab/FOMC-RoBERTa).
+
+For the sake of this vignette, we'll assume that this RoBERTa model was trained on a separate FOMC
+communication dataset, though it was in fact not. As such, the following exercise won't abide by the
+data splitting requirements of MARS, but can easily be made to do so by retraining RoBERTa on a 
+dedicated training split of the Shah et al. (ACL 2023) data.
+
+```{r example_data}
+# read in data from gtfintechlab/fomc_communication, which can also be found on Hugging Face
+fomc_comm <- read_csv(system.file("extdata", "gtfintechlab_fomc_communication_w_imp.csv", package = "mars"))
+
+# create more transparent naming conventions
+fomc_comm <- fomc_comm %>%
+  mutate(neutral = ifelse(label == 2, 1, 0),
+         hawkish = ifelse(label == 1, 1, 0),
+         dovish = ifelse(label == 0, 1, 0)) %>%
+  rename(pred_neutral = pred_2,
+         pred_hawkish = pred_1,
+         pred_dovish = pred_0)
+
+# randomly "annotate" 1/3 of the ground truth data; non-annotated data (A=0) is treated as missing
+set.seed(123)
+pi <- 1 / 3
+fomc_comm <- fomc_comm %>%
+  mutate(A = rbinom(n(), 1, pi))
+```
+
+#### Optional: Imputations with LLMs
+
+Optionally, we may instead have wanted to use a popular LLM served by, e.g., OpenAI to create our 
+imputations. The following chunk, though not evaluated, demonstrates how to do so; all you need is
+to first call `Sys.setenv('OPENAI_API_KEY', 'XXXX')` with your appropriate API key. See the
+ `ellmer` package for more details, for which the function in this package is a wrapper.
+
+```{r impute_with_llms, eval=FALSE}
+# define possible classes for FOMC communication
+classes <- c("hawkish", "neutral", "dovish")
+
+# define example classifications as a data frame for in-context learning
+in_context_examples <- data.frame(
+  text = c(
+    "Broad equity price indexes fell sharply over the intermeeting period on net.",
+    "Low readings on overall and core consumer price inflation in recent months, as well as the weakened economic outlook, kept near-term inflation expectations reported in surveys well below their high levels in mid-2008.",
+    "Our new statement explicitly acknowledges the challenges posed by the proximity of interest rates to the effective lower bound."
+  ),
+  class = c("neutral", "dovish", "hawkish"),
+  stringsAsFactors = FALSE
+)
+
+# impute missing values using multiclass_text_classifier
+imputed_results <- multiclass_text_classifier_openai(
+  text = fomc_comm$sentence,
+  classes = classes,
+  examples = in_context_examples,
+  max_active = 5,  # conservative parallel processing
+  rpm = 100        # conservative rate limit
+)
+```
+
+### Estimation
+
+We now generate MARS mean estimates, which are the basis for our index at the yearly level.
+
+```{r estimation}
+# for each year in fomc_comm$year, run mars_mean_estimator
+fomc_comm_year_mars <- fomc_comm %>%
+  group_by(year) %>%
+  summarize(mars_result = list(mars_mean_estimator(
+    M = hawkish, A = A, hat_mu = pred_hawkish, pi = rep(pi, n())
+  ))) %>%
+  mutate(
+    mars_mean_estimate = map_dbl(mars_result, ~.x$est),
+    mars_se = map_dbl(mars_result, ~.x$se),
+    mars_ci_lower = map_dbl(mars_result, ~.x$ci_lower),
+    mars_ci_upper = map_dbl(mars_result, ~.x$ci_upper)
+  ) %>%
+  select(-mars_result)
+```
+
+Let's also plot the index over time.
+
+```{r plot_mars_mean_estimate}
+# plot the results by year with ggplot2 with error bars
+ggplot(fomc_comm_year_mars, aes(x = year, y = mars_mean_estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mars_ci_lower, ymax = mars_ci_upper)) +
+  theme_minimal() +
+  labs(x = "Year", y = "MARS Mean Estimate")
+```
+
+## Running a Regression with MARS Estimates
+
+Now that we've compiled our index, we can use it in a downstream regression, keeping track of the
+classical measurement error induced by MARS mean estimation.
+
+We'll run a simple, purely illustrative regression of inflation on our FOMC communication index.
+
+### Data Preparation
+
+First, we load in and plot CPI data originally from FRED.
+
+```{r load_cpi_data}
+# load in CPI data from FRED
+cpi <- read_csv(system.file("extdata", "CPIAUCSL.csv", package = "mars"))
+
+# convert date column to year
+cpi <- cpi %>%
+  mutate(year = year(observation_date)) %>%
+  group_by(year) %>%
+  summarize(inflation = mean(CPIAUCSL))
+
+# merge the CPI data with the fomc_comm_year_mars data
+fomc_comm_year_mars <- fomc_comm_year_mars %>%
+  left_join(cpi, by = "year")
+
+# plot mars_mean_estimate vs inflation
+ggplot(fomc_comm_year_mars, aes(x = mars_mean_estimate, y = inflation)) +
+  geom_point() +
+  theme_minimal() +
+  labs(x = "MARS Mean Estimate", y = "Inflation")
+```
+
+### Estimation
+
+We now run the regression using the `me_ls_inid` function, respecting the fact that the measurement
+error variance for each entry in the index plausibly differs.
+
+The function takes as input a matrix of outcomes, a design matrix (matrix of covariates), and a list
+of covariance matrices for the measurement error of each entry, which we base on the MARS mean 
+estimation results. In the example below, for explanatory variables without measurement error, like
+the constant, we simply set the ME variance and covariances to be zero.
+
+```{r estimate_me_ls}
+# create a 2x2 vcov matrix of the measurement error for each entry in the index
+Sigmas <- fomc_comm_year_mars %>%
+  select(mars_se) %>%
+  pull(mars_se) %>%
+  map(~matrix(c(0, 0, 0, .x^2), nrow = 2, ncol = 2))
+
+# run me_ls_inid
+me_ls_inid(
+  Y = matrix(fomc_comm_year_mars$inflation),
+  X = cbind(1, fomc_comm_year_mars$mars_mean_estimate),
+  Sigma = Sigmas
+)
+```

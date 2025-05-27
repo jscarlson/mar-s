@@ -1,0 +1,19 @@
+Package: mars
+Title: MARS: A Unifying Framework for Robust and Efficient Inference with Unstructured Data
+Version: 0.0.0.1
+Authors@R:
+    person("Carlson", "Jacob", , "jacob_carlson@g.harvard.edu", role = c("aut", "cre"))
+Description: Implementation of all estimation procedures in "A Unifying Framework for Robust and Efficient Inference with Unstructured Data" (Carlson and Dell, 2025)
+License: MIT
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports:
+    tidyverse,
+    ellmer,
+    assertthat,
+    jsonlite
+Suggests:
+    testthat,
+    knitr,
+    rmarkdown

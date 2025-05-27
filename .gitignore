@@ -1,0 +1,14 @@
+# R specific files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Linting configuration
+.lintr
+
+# Mac OS files
+.DS_Store
+
+# Project specific files
+*.Rproj 
