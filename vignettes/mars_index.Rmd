@@ -76,7 +76,7 @@ fomc_comm <- fomc_comm %>%
 
 Optionally, we may instead have wanted to use a popular LLM served by, e.g., OpenAI to create our 
 imputations. The following chunk, though not evaluated, demonstrates how to do so; all you need is
-to first call `Sys.setenv('OPENAI_API_KEY', 'XXXX')` with your appropriate API key. See the
+to first call `Sys.setenv("OPENAI_API_KEY" = "XXXX")` with your appropriate API key. See the
  `ellmer` package for more details, for which the function in this package is a wrapper.
 
 ```{r impute_with_llms, eval=FALSE}
