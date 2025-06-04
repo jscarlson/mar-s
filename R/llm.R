@@ -9,7 +9,7 @@
 #' @param examples Data frame with columns 'text' and 'class' containing example classifications.
 #'                 Maximum of 10 rows allowed. Class values must be in the classes parameter.
 #' @param model Character string specifying the model to use (default: "gpt-4.1")
-#' @param max_tokens Integer specifying maximum tokens in response (default: 1000)
+#' @param max_completion_tokens Integer specifying maximum tokens in response (default: 1000)
 #' @param system_prompt Character string for system-level instructions (optional)
 #' @param base_url Character string for the API endpoint (default: "https://api.openai.com/v1")
 #' @param api_key Character string for the API key (default: uses OPENAI_API_KEY environment variable)
@@ -24,7 +24,7 @@
 #' @export
 multiclass_text_classifier_openai <- function(
     text, classes, examples,
-    model = "gpt-4.1", params = list(max_tokens = 100),
+    model = "gpt-4.1", params = list(max_completion_tokens = 100),
     system_prompt = NULL, base_url = "https://api.openai.com/v1",
     api_key = Sys.getenv("OPENAI_API_KEY"), api_args = list(),
     echo = "none", max_active = 1, rpm = 3) {
