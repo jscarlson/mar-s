@@ -4,18 +4,16 @@
 \alias{mars_liv_estimator}
 \title{MARS Linear IV Estimator}
 \usage{
-mars_liv_estimator(Z, Y, M, A, C, hat_mu, pi, level = 0.95)
+mars_liv_estimator(Z_resid, Y, M, A, hat_mu, pi, level = 0.95)
 }
 \arguments{
-\item{Z}{Vector of instrument values}
+\item{Z_resid}{Vector of residualized instrument values}
 
 \item{Y}{Vector of outcome values}
 
 \item{M}{Vector of ground truth treatment values (with non-zero/non-missing entries indicated by A)}
 
 \item{A}{Vector of annotation indicators}
-
-\item{C}{Matrix of covariates}
 
 \item{hat_mu}{Vector of imputed values}
 
@@ -37,12 +35,11 @@ Computes MARS linear IV (constant treatment effect) estimates and confidence int
 }
 \examples{
 # Example usage:
-# result <- mars_linear_iv_estimator(
-#   Z = instrument_values_vector,
+# result <- mars_liv_estimator(
+#   Z_resid = residualized_instrument_vector,
 #   Y = outcome_values_vector,
 #   M = ground_truth_outcomes_vector,
 #   A = annotation_indicators_vector,
-#   C = covariates_matrix,
 #   hat_mu = imputed_values_vector,
 #   pi = annotation_scores_vector,
 #   level = 0.95

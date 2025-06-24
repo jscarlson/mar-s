@@ -4,7 +4,7 @@
 \alias{mars_lrdd_estimator}
 \title{MARS Local RDD Estimator}
 \usage{
-mars_lrdd_estimator(M, R, D, A, mu1, mu0, pi, B, level = 0.95)
+mars_lrdd_estimator(M, R, D, A, mu1, mu0, pi, B, prob1, prob0, level = 0.95)
 }
 \arguments{
 \item{M}{Vector of ground truth outcome values}
@@ -23,6 +23,10 @@ mars_lrdd_estimator(M, R, D, A, mu1, mu0, pi, B, level = 0.95)
 
 \item{B}{Vector of window bounds}
 
+\item{prob1}{Probability of being treated and within the window}
+
+\item{prob0}{Probability of being control and within the window}
+
 \item{level}{Level for the confidence interval (default: 0.95)}
 }
 \value{
@@ -39,7 +43,7 @@ Computes MARS local RDD estimates and confidence intervals.
 }
 \examples{
 # Example usage:
-# result <- mars_local_rdd_estimator(
+# result <- mars_lrdd_estimator(
 #   M = ground_truth_outcomes_vector,
 #   R = running_variable_vector,
 #   D = treatment_indicator_vector,
@@ -48,6 +52,8 @@ Computes MARS local RDD estimates and confidence intervals.
 #   mu0 = imputed_outcomes_control_vector,
 #   pi = annotation_scores_vector,
 #   B = c(lower_bound, upper_bound),
+#   prob1 = 0.5,
+#   prob0 = 0.5,
 #   level = 0.95
 # )
 

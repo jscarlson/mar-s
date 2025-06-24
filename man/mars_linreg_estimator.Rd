@@ -4,16 +4,14 @@
 \alias{mars_linreg_estimator}
 \title{MARS Linear Regression Estimator}
 \usage{
-mars_linreg_estimator(C, A, M, j, hat_mu, pi, level = 0.95)
+mars_linreg_estimator(C_resid, A, M, hat_mu, pi, level = 0.95)
 }
 \arguments{
-\item{C}{Matrix of covariates (|I| x d) for linear regression}
+\item{C_resid}{Vector of residualized covariates}
 
 \item{A}{Vector of annotation indicators}
 
 \item{M}{Vector of ground truth outcome values (with non-zero/non-missing entries indicated by A)}
-
-\item{j}{Coefficient index to estimate}
 
 \item{hat_mu}{Vector of imputed values}
 
@@ -35,9 +33,8 @@ Computes MARS linear regression coefficient estimates and confidence intervals.
 }
 \examples{
 # Example usage:
-# result <- mars_linear_regression_estimator(
-#   C = covariates_matrix,
-#   j = 1,
+# result <- mars_linreg_estimator(
+#   C_resid = residualized_covariates_vector,
 #   A = annotation_indicators_vector,
 #   M = ground_truth_outcomes_vector,
 #   hat_mu = imputed_values_vector,

@@ -67,8 +67,7 @@ mars_mean_estimator <- function(
 #'
 #' Computes MARS linear regression coefficient estimates and confidence intervals.
 #' 
-#' @param C Matrix of covariates (|I| x d) for linear regression
-#' @param j Coefficient index to estimate
+#' @param C_resid Vector of residualized covariates
 #' @param A Vector of annotation indicators
 #' @param M Vector of ground truth outcome values (with non-zero/non-missing entries indicated by A)
 #' @param hat_mu Vector of imputed values
@@ -85,9 +84,8 @@ mars_mean_estimator <- function(
 #' 
 #' @examples
 #' # Example usage:
-#' # result <- mars_linear_regression_estimator(
-#' #   C = covariates_matrix,
-#' #   j = 1,
+#' # result <- mars_linreg_estimator(
+#' #   C_resid = residualized_covariates_vector,
 #' #   A = annotation_indicators_vector,
 #' #   M = ground_truth_outcomes_vector,
 #' #   hat_mu = imputed_values_vector,
@@ -97,16 +95,13 @@ mars_mean_estimator <- function(
 #'
 #' @export
 mars_linreg_estimator <- function(
-  C, A, M, j, hat_mu, pi, level = 0.95
+  C_resid, A, M, hat_mu, pi, level = 0.95
 ) {
   # make sure all the vectors are of the same length
-  stopifnot(length(C) == length(A) && length(C) == length(M) && length(C) == length(hat_mu) && length(C) == length(pi))
+  stopifnot(length(C_resid) == length(A) && length(C_resid) == length(M) && length(C_resid) == length(hat_mu) && length(C_resid) == length(pi))
   
   # sample size
-  I <- nrow(C)
-
-  # compute the FWL residualized matrix C
-  C_resid <- residualize(C[, j], C[, -j])
+  I <- length(C_resid)
 
   # assert that C_resid is mean zero
   stopifnot(mean(C_resid) == 0)
@@ -144,11 +139,10 @@ mars_linreg_estimator <- function(
 #'
 #' Computes MARS linear IV (constant treatment effect) estimates and confidence intervals.
 #' 
-#' @param Z Vector of instrument values
+#' @param Z_resid Vector of residualized instrument values
 #' @param Y Vector of outcome values
 #' @param M Vector of ground truth treatment values (with non-zero/non-missing entries indicated by A)
 #' @param A Vector of annotation indicators
-#' @param C Matrix of covariates
 #' @param hat_mu Vector of imputed values
 #' @param pi Vector of annotation scores
 #' @param level Level for the confidence interval (default: 0.95)
@@ -163,12 +157,11 @@ mars_linreg_estimator <- function(
 #' 
 #' @examples
 #' # Example usage:
-#' # result <- mars_linear_iv_estimator(
-#' #   Z = instrument_values_vector,
+#' # result <- mars_liv_estimator(
+#' #   Z_resid = residualized_instrument_vector,
 #' #   Y = outcome_values_vector,
 #' #   M = ground_truth_outcomes_vector,
 #' #   A = annotation_indicators_vector,
-#' #   C = covariates_matrix,
 #' #   hat_mu = imputed_values_vector,
 #' #   pi = annotation_scores_vector,
 #' #   level = 0.95
@@ -176,19 +169,16 @@ mars_linreg_estimator <- function(
 #'
 #' @export
 mars_liv_estimator <- function(
-  Z, Y, M, A, C, hat_mu, pi, level = 0.95
+  Z_resid, Y, M, A, hat_mu, pi, level = 0.95
 ) {
   # make sure all the vectors are of the same length
-  stopifnot(length(Z) == length(Y) && length(Z) == length(M) && length(Z) == length(A) && length(Z) == length(C) && length(Z) == length(hat_mu) && length(Z) == length(pi))
+  stopifnot(length(Z_resid) == length(Y) && length(Z_resid) == length(M) && length(Z_resid) == length(A) && length(Z_resid) == length(hat_mu) && length(Z_resid) == length(pi))
   
   # sample size
-  I <- nrow(C)
+  I <- length(Z_resid)
 
   # compute the pseudo-outcome
   pseudo <- hat_mu + (A / pi) * (M - hat_mu)
-  
-  # compute residualized instrument
-  Z_resid <- residualize(Z, C)
   
   # compute numerator and denominator estimates
   hat_theta_num <- mean(Z_resid * Y)
@@ -227,6 +217,8 @@ mars_liv_estimator <- function(
 #' @param muG Vector of imputed outcomes for (staggered) treated units
 #' @param muC Vector of imputed outcomes for never-treated units
 #' @param pi Vector of annotation scores
+#' @param probG Probability of being in the treated cohort
+#' @param probC Probability of being never-treated
 #' @param level Level for the confidence interval (default: 0.95)
 #' 
 #' @return A list containing:
@@ -247,34 +239,35 @@ mars_liv_estimator <- function(
 #' #   muG = imputed_outcomes_treated_vector,
 #' #   muC = imputed_outcomes_control_vector,
 #' #   pi = annotation_scores_vector,
+#' #   probG = 0.3,
+#' #   probC = 0.7,
 #' #   level = 0.95
 #' # )
 #' 
 #' @export
 mars_did_estimator <- function(
-  M, C, G, A, muG, muC, pi, level = 0.95
+  M, C, G, A, muG, muC, pi, probG, probC, level = 0.95
 ) {
   # make sure all the vectors are of the same length
   stopifnot(length(M) == length(C) && length(M) == length(G) && length(M) == length(A) && length(M) == length(muG) && length(M) == length(muC) && length(M) == length(pi))
+  
+  # validate probability parameters
+  stopifnot(probG > 0, probC > 0)
 
   # sample size
   I <- length(M)
-
-  # empirical probs
-  hatprobG <- mean(G)
-  hatprobC <- mean(C)
 
   # compute the pseudo-outcomes
   pseudoC <- muC + (A / pi) * (M - muC)
   pseudoG <- muG + (A / pi) * (M - muG)
 
   # compute estimates
-  hat_theta_G <- mean((G / hatprobG) * pseudoG)
-  hat_theta_C <- mean((C / hatprobC) * pseudoC)
+  hat_theta_G <- mean((G / probG) * pseudoG)
+  hat_theta_C <- mean((C / probC) * pseudoC)
   hat_theta <- hat_theta_G - hat_theta_C
 
   # compute the avar
-  psi <- (G / hatprobG) * pseudoG - (C / hatprobC) * pseudoC - hat_theta
+  psi <- (G / probG) * pseudoG - (C / probC) * pseudoC - hat_theta
   avar <- mean(psi^2)
 
   # compute se
@@ -304,6 +297,8 @@ mars_did_estimator <- function(
 #' @param mu0 Vector of imputed outcomes for control units
 #' @param pi Vector of annotation scores
 #' @param B Vector of window bounds
+#' @param prob1 Probability of being treated and within the window
+#' @param prob0 Probability of being control and within the window
 #' @param level Level for the confidence interval (default: 0.95)
 #' 
 #' @return A list containing:
@@ -316,7 +311,7 @@ mars_did_estimator <- function(
 #' 
 #' @examples
 #' # Example usage:
-#' # result <- mars_local_rdd_estimator(
+#' # result <- mars_lrdd_estimator(
 #' #   M = ground_truth_outcomes_vector,
 #' #   R = running_variable_vector,
 #' #   D = treatment_indicator_vector,
@@ -325,15 +320,20 @@ mars_did_estimator <- function(
 #' #   mu0 = imputed_outcomes_control_vector,
 #' #   pi = annotation_scores_vector,
 #' #   B = c(lower_bound, upper_bound),
+#' #   prob1 = 0.5,
+#' #   prob0 = 0.5,
 #' #   level = 0.95
 #' # )
 #' 
 #' @export
 mars_lrdd_estimator <- function(
-  M, R, D, A, mu1, mu0, pi, B, level = 0.95
+  M, R, D, A, mu1, mu0, pi, B, prob1, prob0, level = 0.95
 ) {
   # make sure all the vectors are of the same length
   stopifnot(length(M) == length(R) && length(M) == length(D) && length(M) == length(A) && length(M) == length(mu1) && length(M) == length(mu0) && length(M) == length(pi))
+
+  # validate probability parameters
+  stopifnot(prob1 > 0, prob0 > 0)
 
   # sample size
   I <- length(M)
@@ -343,21 +343,17 @@ mars_lrdd_estimator <- function(
   D_is_1 <- ifelse(D == 1, 1, 0)
   D_is_0 <- ifelse(D == 0, 1, 0)
 
-  # compute empirical probs
-  hatprob1 <- mean(R_in_B * D_is_1)
-  hatprob0 <- mean(R_in_B * D_is_0)
-
   # compute pseudo-outcomes
   pseudo1 <- mu1 + (A / pi) * (M - mu1)
   pseudo0 <- mu0 + (A / pi) * (M - mu0)
 
   # compute estimates
-  hat_theta_1 <- mean(((R_in_B * D_is_1) / hatprob1) * pseudo1)
-  hat_theta_0 <- mean(((R_in_B * D_is_0) / hatprob0) * pseudo0)
+  hat_theta_1 <- mean(((R_in_B * D_is_1) / prob1) * pseudo1)
+  hat_theta_0 <- mean(((R_in_B * D_is_0) / prob0) * pseudo0)
   hat_theta <- hat_theta_1 - hat_theta_0
 
   # compute avar
-  psi <- ((R_in_B * D_is_1) / hatprob1) * pseudo1 - ((R_in_B * D_is_0) / hatprob0) * pseudo0 - hat_theta
+  psi <- ((R_in_B * D_is_1) / prob1) * pseudo1 - ((R_in_B * D_is_0) / prob0) * pseudo0 - hat_theta
   avar <- mean(psi^2)
 
   # compute se

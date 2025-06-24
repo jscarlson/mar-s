@@ -4,7 +4,7 @@
 \alias{mars_did_estimator}
 \title{MARS DiD Estimator}
 \usage{
-mars_did_estimator(M, C, G, A, muG, muC, pi, level = 0.95)
+mars_did_estimator(M, C, G, A, muG, muC, pi, probG, probC, level = 0.95)
 }
 \arguments{
 \item{M}{Vector of ground truth outcome values}
@@ -20,6 +20,10 @@ mars_did_estimator(M, C, G, A, muG, muC, pi, level = 0.95)
 \item{muC}{Vector of imputed outcomes for never-treated units}
 
 \item{pi}{Vector of annotation scores}
+
+\item{probG}{Probability of being in the treated cohort}
+
+\item{probC}{Probability of being never-treated}
 
 \item{level}{Level for the confidence interval (default: 0.95)}
 }
@@ -45,6 +49,8 @@ Computes MARS DiD estimates (Callaway and Sant'Anna, 2021) and confidence interv
 #   muG = imputed_outcomes_treated_vector,
 #   muC = imputed_outcomes_control_vector,
 #   pi = annotation_scores_vector,
+#   probG = 0.3,
+#   probC = 0.7,
 #   level = 0.95
 # )
 
